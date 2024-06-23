@@ -6,9 +6,39 @@
  * Listing 18.11 (p. 271)
  * userController.js에서 인덱스 액션 생성과 index 액션의 재방문
  */
+const passport = require("passport");
 const User = require("../models/User"); // 사용자 모델 요청
 
+const getUserParams = (body) => {
+  return {
+    username: body.username,
+    name: {
+      first: body.first,
+      last: body.last,
+    },
+    email: body.email,
+    password: body.password,
+    profileImg: body.profileImg,
+  };
+};
+
 module.exports = {
+  login: (req, res) => {
+    res.render("users/login", {
+      page: "login",
+      title: "Login",
+    });
+  },
+  authenticate: passport.authenticate("local", {
+    successRedirect: "/",
+    failureRedirect: "/users/login",
+    failureFlash: true,
+  }),
+
+  logout: (req, res) => {
+    req.logout();
+    res.redirect("/");
+  },
   index: (req, res, next) => {
     User.find() // index 액션에서만 퀴리 실행
       .then((users) => {
@@ -49,27 +79,64 @@ module.exports = {
 
   // 사용자를 데이터베이스에 저장하기 위한 create 액션 추가
   create: (req, res, next) => {
-    let userParams = {
-      name: {
-        first: req.body.first,
-        last: req.body.last,
-      },
-      email: req.body.email,
-      username: req.body.username,
-      password: req.body.password,
-      profileImg: req.body.profileImg,
-    };
-    // 폼 파라미터로 사용자 생성
-    User.create(userParams)
-      .then((user) => {
+    if (req.skip) next(); // 유효성 체크를 통과하지 못하면 다음 미들웨어 함수로 전달
+
+    let newUser = new User(getUserParams(req.body)); // Listing 22.3 (p. 328)
+
+    /**
+     * Listing 24.4 (p. 355)
+     * usersController.js에서 create 액션에서의 새로운 사용자 등록
+     * 원래 있는 코드는 다 지우고 아래 코드로 대체
+     */
+    User.register(newUser, req.body.password, (err, user) => {
+      if (user) {
         res.locals.redirect = "/users";
-        res.locals.user = user;
-        next();
+        req.flash("success", "Account created!");
+      } else {
+        res.locals.redirect = "/users/new";
+        req.flash("error", `Failed to create account! ${err.message}`);
+      }
+      next();
+    });
+  },
+
+  /**
+   * Listing 23.7 (p. 346)
+   * userController.js에서 validate 액션 추가
+   */
+  validate: (req, res, next) => {
+    // 사용자가 입력한 이메일 주소가 유효한지 확인
+    req
+      .sanitizeBody("email")
+      .normalizeEmail({
+        all_lowercase: true,
       })
-      .catch((error) => {
-        console.log(`Error saving user: ${error.message}`);
-        next(error);
-      });
+      .trim(); // trim()으로 whitespace 제거
+    req.check("email", "Email is invalid").isEmail();
+    // req
+    //   .check("zipCode", "Zip code is invalid")
+    //   .notEmpty()
+    //   .isInt()
+    //   .isLength({
+    //     min: 5,
+    //     max: 5,
+    //   })
+    //   .equals(req.body.zipCode); // zipCode 값의 유효성 체크
+    req.check("password", "Password cannot be empty").notEmpty(); // password 필드 유효성 체크
+
+    // 사용자가 입력한 비밀번호가 일치하는지 확인
+    req.getValidationResult().then((error) => {
+      // 앞에서의 유효성 체크 결과 수집
+      if (!error.isEmpty()) {
+        let messages = error.array().map((e) => e.msg);
+        req.skip = true; // skip 속성을 true로 설정
+        req.flash("error", messages.join(" and ")); // 에러 플래시 메시지로 추가
+        res.locals.redirect = "/users/new"; // new 뷰로 리디렉션 설정
+        next();
+      } else {
+        next(); // 다음 미들웨어 함수 호출
+      }
+    });
   },
 
   // 분리된 redirectView 액션에서 뷰 렌더링
@@ -134,16 +201,7 @@ module.exports = {
   // update 액션 추가
   update: (req, res, next) => {
     let userId = req.params.id,
-      userParams = {
-        name: {
-          first: req.body.first,
-          last: req.body.last,
-        },
-        email: req.body.email,
-        username: req.body.username,
-        password: req.body.password,
-        profileImg: req.body.profileImg,
-      }; // 요청으로부터 사용자 파라미터 취득
+      userParams = getUserParams(req.body);
 
     User.findByIdAndUpdate(userId, {
       $set: userParams,

@@ -1,4 +1,4 @@
-// seedCourses.js
+// data/seedCourses.js
 "use strict";
 
 /**

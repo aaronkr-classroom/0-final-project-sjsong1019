@@ -1,4 +1,4 @@
-// seedUsers.js
+// data/seedUsers.js
 "use strict";
 
 /**

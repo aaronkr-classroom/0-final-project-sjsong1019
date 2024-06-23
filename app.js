@@ -9,8 +9,10 @@
 
 // modules
 const express = require("express"), // express를 요청
-  layouts = require("express-ejs-layouts"), // express-ejs-layout의 요청
-  app = express(); // express 애플리케이션의 인스턴스화
+  layouts = require("express-ejs-layouts") // express-ejs-layout의 요청
+const app = express(); // express 애플리케이션의 인스턴스화
+
+
 
 // controllers 폴더의 파일을 요청
 const pagesController = require("./controllers/pagesController"),
@@ -19,7 +21,8 @@ const pagesController = require("./controllers/pagesController"),
   coursesController = require("./controllers/coursesController"),
   talksController = require("./controllers/talksController"),
   trainsController = require("./controllers/trainsController"),
-  errorController = require("./controllers/errorController");
+  errorController = require("./controllers/errorController"),
+  moviesController = require("./controllers/moviesController"); // 추가된 컨트롤러
 
 /**
  * =====================================================================
@@ -33,6 +36,7 @@ const mongoose = require("mongoose");
 mongoose.connect(
   "mongodb+srv://ut-node:tsMUAzw6qrc4sKYh@ut-node.uvwafzx.mongodb.net/?retryWrites=true&w=majority&appName=ut-node",
 );
+
 const db = mongoose.connection;
 db.once("open", () => {
   console.log("Connected to MONGODB!!!");
@@ -58,6 +62,40 @@ app.use(express.static("public"));
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
+const methodOverride = require("method-override"); // method-override 미들웨어를 요청
+app.use(
+  methodOverride("_method", {
+    methods: ["POST", "GET"],
+  })
+); // method-override 미들웨어를 사용
+
+const expressSession = require("express-session"),
+  cookieParser = require("cookie-parser"),
+  connectFlash = require("connect-flash");
+  
+app.use(cookieParser("secret_passcode")); // cookie-parser 미들웨어를 사용하고 비밀 키를 전달
+app.use(
+  expressSession({
+     // express-session 미들웨어를 사용
+    secret: "secret_passcode", // 비밀 키를 전달
+    cookie: {
+      maxAge: 4000000, // 쿠키의 유효 기간을 설정
+    },
+    resave: false, // 세션을 매번 재저장하지 않도록 설정
+    saveUninitialized: false, // 초기화되지 않은 세션을 저장하지 않도록 설정
+  })
+);
+app.use(connectFlash()); // connect-flash 미들웨어를 사용
+
+const passport = require("passport"); // passport를 요청
+app.use(passport.initialize()); // passport를 초기화
+app.use(passport.session()); // passport가 Express.js 내 세션을 사용하도록 설정
+
+const User = require("./models/User"); // User 모델을 요청
+passport.use(User.createStrategy()); // User 모델의 인증 전략을 passport에 전달
+passport.serializeUser(User.serializeUser()); // User 모델의 직렬화 메서드를 passport에 전달
+passport.deserializeUser(User.deserializeUser()); // User 모델의 역직렬화 메서드를 passport에 전달
+
 /**
  * =====================================================================
  * Define routes
@@ -66,6 +104,15 @@ app.use(express.json());
 
 const router = express.Router(); // Express 라우터를 인스턴스화
 app.use("/", router); // 라우터를 애플리케이션에 추가
+
+router.use((req, res, next) => {
+  // 응답 객체상에서 플래시 메시지의 로컬 flashMessages로의 할당
+  res.locals.flashMessages = req.flash(); // flash 메시지를 뷰에서 사용할 수 있도록 설정
+  res.locals.loggedIn = req.isAuthenticated(); // passport boolean
+  res.locals.currentUser= req.user;
+  next();
+});
+
 
 /**
  * Pages
@@ -108,6 +155,12 @@ router.delete(
 /**
  * Users
  */
+router.get("/users/login", usersController.login); // 로그인 폼을 보기 위한 요청 처리
+router.post(
+  "/users/login",
+  usersController.authenticate,
+  usersController.redirectView
+);
 router.get("/users", usersController.index, usersController.indexView); // index 라우트 생성
 router.get("/users/new", usersController.new); // 생성 폼을 보기 위한 요청 처리
 router.post(
@@ -198,6 +251,17 @@ router.delete(
   trainsController.delete,
   trainsController.redirectView
 );
+
+/**
+ * Movies
+ */
+router.get("/movies", moviesController.index);
+router.get("/movies/new", moviesController.new);
+router.post("/movies/create", moviesController.create);
+router.get("/movies/:id", moviesController.show);
+router.get("/movies/:id/edit", moviesController.edit);
+router.put("/movies/:id/update", moviesController.update);
+router.delete("/movies/:id/delete", moviesController.delete);
 
 /**
  * =====================================================================

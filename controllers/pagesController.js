@@ -1,4 +1,4 @@
-// homeController.js
+// controllers/pagesController.js
 "use strict";
 
 /**

@@ -1,0 +1,13 @@
+<!-- views/movies/index.ejs -->
+
+<h1>Movie List</h1>
+
+<ul>
+    <% movies.forEach(movie => { %>
+        <li>
+            <a href="/movies/<%= movie._id %>"><%= movie.title %></a>
+        </li>
+    <% }) %>
+</ul>
+
+<a href="/movies/new">Add New Movie</a>

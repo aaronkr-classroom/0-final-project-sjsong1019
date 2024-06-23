@@ -11,6 +11,7 @@
  * {Schema}는 Mongoose의 Schema 객체를 동일한 이름의 상수로 할당한다. 나중에 이
  * 새로운 형식을 다른 모델에 적용할 것이다.
  */
+const passportLocalMongoose = require("passport-local-mongoose");
 const mongoose = require("mongoose"),
   Subscriber = require("./Subscriber"),
   { Schema } = mongoose,
@@ -66,6 +67,10 @@ const mongoose = require("mongoose"),
     }
   );
 
+userSchema.plugin(passportLocalMongoose, {
+  usernameField: "username",
+  hashField: "password",
+});
 /**
  * Listing 18.2 (p. 260)
  * 사용자 모델에 가상 속성 추가
